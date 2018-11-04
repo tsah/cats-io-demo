@@ -11,6 +11,36 @@ import scala.io.StdIn
 object CatsIODemo
 
 
+// Recap: What is pure functional programming?
+
+// A purely functional expression does not have side effects and is referentially transparent.
+
+
+object PureExample {
+
+  List(1,1)
+
+  // is equivalent to
+
+  val i = 1
+  List(i,i)
+
+}
+
+object ImpureExample {
+
+  def f(): Int = {
+    println("hello")
+    1
+  }
+
+  List(f(),f())
+
+  // is NOT equivalent to
+
+  val a: Int = f()
+  List(a,a)
+}
 
 
 
@@ -19,9 +49,9 @@ object CatsIODemo
 
 
 
+// So, is it possible to write a purely functional program but still use side effects?
 
-// What is the IO monad about?
-
+// This is where the IO Monad comes in
 
 
 
@@ -50,7 +80,7 @@ trait ImpureUserRepository {
 
   def getUser(id: String): User
 
-  // Are there side effects? Who knows?
+  // No way to know if there are side effects
 
 }
 
@@ -71,7 +101,7 @@ trait ImpureUserRepository {
 
 
 
-// What if there was another way?
+// With the IO Monad, we can declare that the method has a side effect
 
 
 
@@ -134,14 +164,15 @@ object HelloWorld extends App {
   // First compose the computation, then run at "end of the world"
 
   val app = IO { println("Hello, World") }
-//  app.unsafeRunSync()
+
+  app.unsafeRunSync()
 
 }
 
 
-object Ref extends App {
-  val p = IO {println("Hello, World")}
+object IOValuesAreReferentiallyTransparent extends App {
 
+  val p = IO {println("Hello, World")}
 
   (p, p)
   (IO {println("Hello, World")}, IO {println("Hello, World")})
@@ -195,7 +226,7 @@ object Ref extends App {
 
 
 object HelloName extends App {
-  val app = for {
+  val app: IO[Unit] = for {
     _ <-    IO { println("enter name") }
     name <- IO { StdIn.readLine() }
     _ <-    IO { println(s"Hello, $name")}
@@ -208,9 +239,13 @@ object HelloName extends App {
 
 
 
-//object F {
-//  Future {...}
-//}
+
+
+
+
+
+
+
 
 
 
@@ -225,7 +260,7 @@ object HelloName extends App {
 
 
 // Can't I do it all with Future?
-// Kind of, but we'll see that IO can be nicer.
+// Future is a monad but it's not pure. IO Monad is pure and more powerful.
 
 
 
@@ -248,8 +283,8 @@ object HelloName extends App {
 
 
 
-// Why is Future not pure? it has a side effect - a Runnable is dispatched in the background
-// Problem #1 -  There is no referential transparency:
+// Why is Future not pure?
+// It's not referentially transparent
 
 object Future1 extends App {
   import scala.concurrent.ExecutionContext.Implicits.global
@@ -318,7 +353,8 @@ object NowWithIO extends App {
 
 
 
-// Problem #2 - There is less control over execution
+// Why is IO Monad more powerful than Future?
+// Laziness allows more control over execution
 
 object ShowFuturesExecution extends App {
   import scala.concurrent.ExecutionContext.Implicits.global
@@ -355,7 +391,7 @@ object ShowIOExecution extends App {
   val app = ctx.shift *>
     IO {
       printCurrentThread()
-    }.flatMap(_ => ctx.shift).map{ _ =>
+    }.map{ _ =>
       printCurrentThread()
     }.map{ _ =>
       printCurrentThread()
@@ -399,12 +435,12 @@ object WhatAboutConcurrency extends App {
   }
 
   val app = for {
-    f1 <- hello
-    f2 <- hello
-    f3 <- hello
-//    _ <- f1.join
-//    _ <- f2.join
-//    _ <- f3.join
+    f1 <- hello.start
+    f2 <- hello.start
+    f3 <- hello.start
+    _ <- f1.join
+    _ <- f2.join
+    _ <- f3.join
   } yield ()
 
   app.unsafeRunSync()
@@ -449,61 +485,12 @@ object MoreComplicatedConcurrency extends App {
 
   val app = sequence(helloes)
     .flatMap { listOfFibers =>
-      sequence(listOfFibers.map{_.join})
+      val joinedFibers = listOfFibers.map {
+        _.join
+      }
+      sequence(joinedFibers)
     }
 
   app.unsafeRunSync()
 
-}
-
-// Some more features
-
-object TryWithResources extends App {
-  val lock = new ReentrantLock()
-
-  val app = IO(lock)
-    .bracket{lock =>
-      for {
-        _ <- IO { lock.lock() }
-        _ <- IO { println("I have the lock") }
-      } yield ()
-    }{ lock =>
-      for {
-        _ <- IO { lock.unlock() }
-        _ <- IO { println("now I don't ") }
-      } yield ()
-    }
-
-    app.unsafeRunSync()
-
-}
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-object Suspend extends App {
-  def loop(i: Int): IO[Unit] = IO.suspend{
-    if (i < 0) {
-      IO.unit
-    } else {
-      IO { println(i)} *> loop(i - 1)
-    }
-  }
-
-  loop(10).unsafeRunSync()
 }
