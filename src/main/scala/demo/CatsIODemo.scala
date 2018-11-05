@@ -1,7 +1,5 @@
 package demo
 
-import java.util.concurrent.locks.ReentrantLock
-
 import cats.effect._
 import cats.implicits._
 
@@ -13,33 +11,49 @@ object CatsIODemo
 
 // Recap: What is pure functional programming?
 
-// A purely functional expression does not have side effects and is referentially transparent.
+// A pure function does not have side effects - it always returns the same output for the same input
+
+// What we get is referential transparency:
 
 
-object PureExample {
+object PureExample extends App {
 
-  List(1,1)
+  def f(): Int = 1
+
+  println(
+    List(f(),f())
+  )
+
+  println("#####")
 
   // is equivalent to
 
-  val i = 1
-  List(i,i)
+  val i: Int = f()
+  println (
+    List(i,i)
+  )
 
 }
 
-object ImpureExample {
+object ImpureExample extends App {
 
   def f(): Int = {
     println("hello")
     1
   }
 
-  List(f(),f())
+  println (
+    List(f(),f())
+  )
 
+
+  println("#####")
   // is NOT equivalent to
 
   val a: Int = f()
-  List(a,a)
+  println (
+    List(a,a)
+  )
 }
 
 
@@ -49,7 +63,7 @@ object ImpureExample {
 
 
 
-// So, is it possible to write a purely functional program but still use side effects?
+// So, is it possible to write a purely functional program but still use IO operations?
 
 // This is where the IO Monad comes in
 
@@ -170,12 +184,26 @@ object HelloWorld extends App {
 }
 
 
+
+
+
+
+
+
 object IOValuesAreReferentiallyTransparent extends App {
 
-  val p = IO {println("Hello, World")}
+  def f() = IO { println("Hello, World") }
 
-  (p, p)
-  (IO {println("Hello, World")}, IO {println("Hello, World")})
+  println(
+    List(f(), f())
+  )
+
+  println("#####")
+
+  val p = f()
+  println(
+    List(p,p)
+  )
 }
 
 
@@ -201,7 +229,7 @@ object IOValuesAreReferentiallyTransparent extends App {
 
 
 
-// IO is a monad, so we can use Scala's functional patterns
+// IO is a monad, so we can compose it
 
 
 
@@ -241,6 +269,13 @@ object HelloName extends App {
 
 
 
+
+
+
+
+
+
+// Does this remind you of another Monad?
 
 
 
@@ -347,14 +382,14 @@ object NowWithIO extends App {
 
 
 
-
-
-
-
-
-
 // Why is IO Monad more powerful than Future?
 // Laziness allows more control over execution
+
+
+
+
+
+
 
 object ShowFuturesExecution extends App {
   import scala.concurrent.ExecutionContext.Implicits.global
@@ -388,14 +423,15 @@ object ShowIOExecution extends App {
     println(Thread.currentThread().getName)
   }
 
-  val app = ctx.shift *>
+  val app = ctx.shift.flatMap { _ =>
     IO {
       printCurrentThread()
-    }.map{ _ =>
+    }.map { _ =>
       printCurrentThread()
-    }.map{ _ =>
+    }.map { _ =>
       printCurrentThread()
     }
+  }
 
   Await.ready(app.unsafeToFuture(), 1.second)
 }
@@ -412,7 +448,7 @@ object ShowIOExecution extends App {
 
 
 
-// What about concurrency?
+// What about concurrency/asynchronicity?
 
 
 
@@ -469,8 +505,6 @@ object WhatAboutConcurrency extends App {
 
 object MoreComplicatedConcurrency extends App {
 
-  def sequence[A](s: List[IO[A]]): IO[List[A]] = s.sequence[IO, A]
-
   val ec = scala.concurrent.ExecutionContext.Implicits.global
   implicit val ctx: ContextShift[IO] = IO.contextShift(ec)
 
@@ -482,6 +516,8 @@ object MoreComplicatedConcurrency extends App {
   val helloes = 1.to(10).toList
     .map{ _ => hello }
     .map{ _.start }
+
+  def sequence[A](s: List[IO[A]]): IO[List[A]] = s.sequence[IO, A]
 
   val app = sequence(helloes)
     .flatMap { listOfFibers =>
