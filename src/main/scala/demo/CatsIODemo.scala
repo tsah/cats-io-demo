@@ -18,6 +18,7 @@ object CatsIODemo
 
 object PureExample extends App {
 
+
   def f(): Int = 1
 
   println(
@@ -94,7 +95,7 @@ trait ImpureUserRepository {
 
   def getUser(id: String): User
 
-  // No way to know if there are side effects
+  // No way to know if this performs IO
 
 }
 
@@ -115,7 +116,7 @@ trait ImpureUserRepository {
 
 
 
-// With the IO Monad, we can declare that the method has a side effect
+// With the IO Monad, we can declare that the method has an IO effect
 
 
 
@@ -257,7 +258,7 @@ object HelloName extends App {
   val app: IO[Unit] = for {
     _ <-    IO { println("enter name") }
     name <- IO { StdIn.readLine() }
-    _ <-    IO { println(s"Hello, $name")}
+    _ <-    IO { println(s"Hello, $name") }
   } yield ()
 
   app.unsafeRunSync()
